@@ -1,206 +1,95 @@
-# 70 分钟 demo：增量实验协议
+# 历史 70 分钟 benchmark 与当前全量管线抽样验证
 
-## 1. 目标
+> **注意：本文件不再描述项目主线阶段。**
+> 当前模型服务器已经在对全部音视频运行全量 ASR。
+> 70 分钟材料只作为历史基线、回归样本或可控 benchmark 使用。
 
-验证新路线：
+## 1. 当前目的
 
-**现有本地结构能力 + 本地隐私处理 + 云 ASR + 本地重建**
+利用已有 70 分钟材料（若历史产物完整则直接复用）进行：
 
-能否在不重复历史工作的前提下，提高最终逐字稿质量。
+- Qwen70B 敏感信息识别规则回归；
+- timestamp/redaction boundary benchmark；
+- 隐私相关 ASR 错误分析；
+- cloud ASR 前后邻近语音质量测试。
 
-## 2. 第一阶段：复用盘点
+不得因此重新定义整个工程为 demo 阶段。
 
-先确认现有 70 分钟 demo 已有哪些产物。
+## 2. 首先复用历史产物
 
-优先寻找：
+寻找：
 
-- 原始/预处理音频；
-- 完整 70 分钟本地转录；
+- 已有完整本地转录；
+- 时间戳；
+- 音频预处理结果；
+- 人工校对；
+- 既有 CER/WER；
+- 历史模型输出。
+
+存在则复用。
+
+## 3. 更重要的新 benchmark：敏感 span
+
+优先从真实全量数据和历史样本中构建人工 gold：
+
+- 两/三字姓名；
+- 手机号/数字串；
+- 地址；
+- 机构；
+- 学校/单位；
+- 第三人；
+- 组合重识别信息；
+- 快速/小声/重叠；
+- 敏感词紧邻关键研究语句。
+
+评估：
+
+- Sensitive Span Recall；
+- Sensitive Transcription Error；
+- Number/Identifier Accuracy；
+- start/end boundary MAE；
+- P90/P95 boundary error；
+- Privacy Leakage；
+- Collateral Audio Loss；
+- manual review rate。
+
+## 4. 当前不需要用该 benchmark 优化的内容
+
+除非证明会影响隐私流程，否则不以本轮为目标：
+
 - speaker diarization；
-- VAD；
-- word/segment timestamps；
-- Qwen 或其他模型输出；
-- 人工校对片段；
-- 既有 CER/WER 评测；
-- 运行日志与失败记录。
+- speaker label；
+- 一般标点；
+- 与敏感信息无关的普通句 CER。
 
-这些产物存在就复用，不能因为本路线新增而重新跑一遍。
+## 5. 70 分钟完整覆盖仍有价值的场景
 
-## 3. 隐私发现
+如果需要验证端到端 regression，可要求 70 分钟完整通过 Privacy Pipeline。
 
-对完整 70 分钟执行敏感候选检测。
+但这是：
+**回归测试**
 
-可复用已有 ASR 文本。
+不是：
+**项目仍处于 70 分钟 demo 阶段**
 
-建议输出：
+## 6. 当前主线应关注全量增量状态
 
-`privacy_candidates.jsonl`
+建议统计：
 
-每条包含：
+- ASR_READY 文件数；
+- PRIVACY_CLASSIFIED 文件数；
+- NEEDS_TRANSCRIPT_REPAIR 数；
+- NEEDS_BOUNDARY_REVIEW 数；
+- REDACTED 数；
+- CLOUD_READY 数；
+- CLOUD_TRANSCRIBED 数。
 
-- start/end；
-- entity type；
-- detection sources；
-- confidence/notes；
-- manual_review status。
+## 7. run log
 
-候选来源采用并集。
+所有实验应说明：
 
-## 4. 时间定位和等长脱敏
+- 是历史 70 分钟 regression；
+- 还是全量文件抽样；
+- 还是生产增量运行。
 
-将确认/高风险候选转成精确时间区间，做安全扩边。
-
-生成：
-
-- 完整 70 分钟 `redacted_master.wav`；
-- `privacy_manifest.json`；
-- 校验报告。
-
-强校验：
-
-- 原音频总 sample count == 脱敏后总 sample count；
-- 所有 redaction 区间合法、非负、无越界；
-- overlapping spans 合并；
-- manifest 不保存不必要的明文实体。
-
-## 5. 人工 Privacy Gate
-
-对首个 70 分钟 demo：
-
-1. 审核候选敏感片段；
-2. 完整听一遍脱敏版；
-3. 记录漏检；
-4. 如发现漏检，回写 manifest；
-5. 重新生成脱敏母版；
-6. 再次确认。
-
-最终结果要记录：
-- 直接标识符泄漏数；
-- 第三人明确身份泄漏数；
-- 边界残留数；
-- 过度遮挡数量/时长；
-- 人工修订次数。
-
-## 6. 云端 A/B
-
-仅在 Gate 允许后。
-
-不要直接把原始音频上传。
-
-从脱敏母版切 chunk。
-
-建议起步：
-- 10–20 分钟/chunk；
-- 保留 `global_start_s`；
-- provider-specific size/time limit 动态调整。
-
-至少运行：
-- 一个正式候选 provider；
-- 如条件允许，再运行第二 provider 作为质量对照。
-
-每个 job 保存：
-- provider/model；
-- 参数；
-- request id；
-- chunk hash；
-- global offset；
-- response metadata；
-- retry/error；
-- cloud deletion state。
-
-## 7. 质量 gold subset
-
-为了避免只凭主观感觉判断，建立 15–20 分钟人工 gold subset。
-
-优先覆盖：
-
-- 清晰普通对话；
-- 小声/含糊；
-- 重叠语音；
-- 快速或情绪激动；
-- 心理咨询专业表达；
-- 否定词；
-- 数字；
-- 脱敏附近上下文。
-
-如果历史已经有人工 gold，不要重标；先复用。
-
-## 8. 评估
-
-至少比较：
-
-- 原本地 baseline；
-- 新云 provider A；
-- provider B（若运行）。
-
-指标：
-
-- CER；
-- 关键语义词错误；
-- 否定词错误；
-- 数字错误；
-- 插入/幻觉；
-- 漏词；
-- 重叠语音表现；
-- 时间戳可用性；
-- 对脱敏静音前后上下文的影响。
-
-“云端更好”必须是项目音频上的结果，不采用厂商宣传代替。
-
-## 9. 本地重建
-
-把 cloud word timestamps 转换成 global timestamps。
-
-然后与：
-
-- 本地 speaker timeline；
-- privacy manifest；
-
-合并。
-
-输出至少：
-
-- machine-readable JSON；
-- human-readable transcript。
-
-placeholder 示例：
-
-- `[姓名]`
-- `[电话号码]`
-- `[地址]`
-- `[机构]`
-- `[第三人身份]`
-
-## 10. 完整 70 分钟要求
-
-可以：
-- 分 chunk；
-- 并发；
-- 失败重试；
-- 局部复跑。
-
-不可以：
-- 只用 5–10 分钟实验后宣称“70 分钟完成”；
-- 用 subset 代替完整最终生成；
-- 因 API 成本/超时默默跳过尾部。
-
-最终必须能证明：
-从 00:00 到音频末尾都有处理覆盖。
-
-## 11. 最终 run log
-
-建议：
-`worklogs/API_NATIVE_RUN_YYYYMMDD.md`
-
-内容：
-
-- 复用了哪些历史模块；
-- 哪些步骤没重跑；
-- 新增组件；
-- Gate 状态；
-- 70 分钟覆盖证明；
-- provider 参数；
-- 质量指标；
-- 隐私审核结果；
-- 失败与重试；
-- 剩余问题。
+避免 Codex 把三者混为一谈。
