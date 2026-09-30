@@ -105,9 +105,11 @@ speaker diarization 不是本阶段前置条件。
 - collateral non-sensitive speech loss；
 - 时间长度一致性。
 
-## 9. Cloud ASR adapter
+## 9. Cloud ASR adapter（当前仅准备，不实际调用）
 
 provider 必须可替换。
+
+**截至本仓库当前提交阶段，live cloud API 必须保持禁用。** Codex 需要完成 adapter、配置、request builder、parser、mock/fixture、异常处理和测试，但不得真的发起云端 ASR 请求。
 
 云端主要提供：
 - 更高质量最终文字；
@@ -150,7 +152,7 @@ speaker attribution 可保留已有结果，但不是当前完成定义的硬要
 可以：
 - aligner 异常时人工局部校；
 - Qwen70B 不确定时局部重转录；
-- provider 未批准时仅 mock；
+- 当前提交阶段一律仅使用 mock/fixture/dry-run；即使 provider 条件已明确，也不实际调用，直到用户后续显式解锁；
 - speaker diarization 暂不修。
 
 不允许：
