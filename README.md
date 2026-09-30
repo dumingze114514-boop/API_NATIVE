@@ -9,7 +9,7 @@
 
 > **模型服务器正在对全部音视频执行全量 ASR。**
 
-全量任务可能尚未全部完成，但已经在持续运行，因此 API_NATIVE 必须以“消费正在产生的 ASR artifact”为前提，而不是重新设计一套 demo 流程。
+全量任务可能尚未全部完成，但已经在持续运行，因此 API_NATIVE 必须以“消费正在产生的 ASR artifact”为前提，直接衔接现有全量工程。
 
 Codex 不应等待全部 ASR 完成才开始隐私管线，也不得为了 API_NATIVE 重新跑无关的全量工作。
 
@@ -157,7 +157,6 @@ API_NATIVE 当前最重要的不是“所有 ASR 问题一起解决”，而是�
 5. [HYBRID_PRIVACY_ASR_PLAN.md](./HYBRID_PRIVACY_ASR_PLAN.md)
 6. [ETHICS_AND_VENDOR_GATE_CN.md](./ETHICS_AND_VENDOR_GATE_CN.md)
 7. [PRIVACY_MANIFEST_SPEC.md](./PRIVACY_MANIFEST_SPEC.md)
-8. [EXPERIMENT_70MIN_INCREMENTAL.md](./EXPERIMENT_70MIN_INCREMENTAL.md) — **仅作为历史/抽样 benchmark 参考，不再代表项目主线阶段。**
 
 ---
 
@@ -193,7 +192,34 @@ speaker 信息若已有可保留；不稳定时不能阻塞 P0。
 
 ## 7. 生产 Gate
 
-任何真实咨询音频进入云 API 前必须同时满足：
+### 当前阶段的云 API 冻结规则
+
+**截至本仓库当前提交阶段，不实际调用任何云端 ASR API，不产生付费请求，也不向云端上传任何音频。**
+
+原因是当前尚未为云 API 充值。这个限制只冻结“真实调用”，不冻结前期工程。
+
+Codex 必须在不调用云 API 的前提下，把上线前准备做到“充值/授权后只需填入凭证并显式解锁即可运行”，至少包括：
+
+- provider adapter 接口与实现骨架；
+- 请求参数、鉴权变量和配置 schema；
+- chunking、global offset 与任务状态设计；
+- request payload 构造与本地 dry-run；
+- mock/fake provider；
+- 响应样例 fixture 与 parser；
+- retry / timeout / error handling；
+- 上传前 Gate 检查；
+- 云任务删除/清理逻辑的实现或明确接口；
+- 成本估算与批量调用预算参数；
+- provider 条款/留存/训练用途核验表；
+- 不含真实凭证的 `.env.example`；
+- 单元测试/集成测试（使用 mock/fixture）；
+- 明确的 `LIVE_CLOUD_API_DISABLED=true` 或等效硬开关。
+
+默认必须 **fail closed**：没有用户后续明确授权与凭证时，任何代码路径都不能意外发起外部云 ASR 请求。
+
+### 未来真实调用前的 Gate
+
+未来在用户完成充值并明确允许启用后，任何真实咨询音频进入云 API 前仍必须同时满足：
 
 - **Ethics Gate**
 - **Privacy Gate**
@@ -201,7 +227,7 @@ speaker 信息若已有可保留；不稳定时不能阻塞 P0。
 - **Security Gate**
 - **Boundary Gate**：敏感 span 的时间边界不存在未解决的高风险异常。
 
-如 Gate 未通过，可以开发/mock，但不得上传真实心理咨询音频。
+如 Gate 未通过，可以继续开发、dry-run、mock 和 fixture 测试，但不得上传真实心理咨询音频。当前提交阶段即使 Gate 已满足，也仍保持云 API 冻结，直到用户后续明确解锁。
 
 ---
 
