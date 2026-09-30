@@ -5,7 +5,6 @@
 模型服务器已经在对全部音视频执行全量 ASR。
 
 因此：
-- 不把项目当成 demo 阶段；
 - 不等待所有文件转录结束才开始；
 - 对已完成 artifact 增量处理；
 - 对新完成 artifact 持续接入；
@@ -109,7 +108,34 @@ Codex 必须读取历史 ASR 质量问题，不能假设已有文本准确。
 
 只有当说话人问题直接造成敏感信息漏检/边界错误时，才提升优先级。
 
-## 9. 真实数据停机条件
+## 9. 当前阶段：禁止实际云 API 调用
+
+截至本仓库当前提交阶段：
+
+- 不调用任何真实云端 ASR API；
+- 不产生付费 API 请求；
+- 不上传真实、脱敏或测试音频到云 ASR；
+- 不以“用公开音频试一下”为理由绕过该冻结。
+
+但必须完成全部调用前准备：
+
+- provider adapter；
+- 配置与 secret schema；
+- request builder；
+- chunk/global offset；
+- dry-run；
+- mock provider；
+- response fixtures/parser；
+- retry/timeout/error paths；
+- Gate enforcement；
+- cost/budget 参数；
+- 删除/清理接口；
+- 测试；
+- 默认关闭 live API 的硬开关。
+
+默认行为必须 fail closed。只有用户后续明确说明已经具备调用条件并授权启用时，才能解除 live API freeze。
+
+## 10. 未来真实数据停机条件
 
 以下任一不满足，可继续 mock/开发，但不能上传真实咨询音频：
 
@@ -119,7 +145,7 @@ Codex 必须读取历史 ASR 质量问题，不能假设已有文本准确。
 - Security Gate；
 - 敏感 span 的 transcript/alignment 存在未解决高风险异常。
 
-## 10. 允许变通
+## 11. 允许变通
 
 允许：
 - 复用已有框架；
@@ -132,7 +158,7 @@ Codex 必须读取历史 ASR 质量问题，不能假设已有文本准确。
 
 偏离参考方案时写明理由和对 Gate 的影响。
 
-## 11. 完成时报告
+## 12. 完成时报告
 
 至少报告：
 
