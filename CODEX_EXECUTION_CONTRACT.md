@@ -1,125 +1,148 @@
 # Codex 执行契约：只做增量，不重复历史工作
 
-## 1. 本文件优先级
+## 1. 当前前提
 
-执行本参考包时，本文件优先于“按文档逐项实现”的机械行为。
+模型服务器已经在对全部音视频执行全量 ASR。
 
-目标不是复现一套新的 ASR 工程，而是把 **privacy-aware cloud ASR** 增量接到已有心花项目上。
+因此：
+- 不把项目当成 demo 阶段；
+- 不等待所有文件转录结束才开始；
+- 对已完成 artifact 增量处理；
+- 对新完成 artifact 持续接入；
+- 不为了本任务重复已有全量 ASR。
 
-## 2. 必做的 reuse audit
+## 2. 本文件优先级
 
-在写代码、装模型、重跑 70 分钟 demo、改服务器环境之前，先核对：
+目标不是复现新的 ASR 工程，而是把 privacy-aware cloud ASR 增量接到已有心花项目上。
+
+## 3. 必做 reuse audit
+
+在写代码、装模型、重跑文件、改服务器环境前，先核对：
 
 - 当前工程根目录和 Git remote；
-- 全部分支、最近提交与相关历史；
-- `project/implementation/README.md` 或同类实现说明（如果路径已变化，搜索同类文件）；
-- 现有 `scripts/`、`src/`、`pipeline/`、`outputs/`、`results/`、`logs/`；
-- 服务器上模型缓存、venv/conda、Docker、CUDA 环境；
-- 70 分钟 demo 是否已经完整跑过；
-- 是否已有 VAD、diarization、forced alignment、timestamps；
-- 是否已有云 API 试验、脱敏脚本、实体词表或人工校对文件；
-- 实际输出文件是否存在，即使 README 未记录。
+- 分支、提交和相关历史；
+- 实现说明与实验日志；
+- 正在运行的批量 ASR job；
+- 已完成/失败/待处理文件列表；
+- 现有 ASR artifact schema；
+- 时间戳/forced alignment 能力；
+- 模型缓存和运行环境；
+- 是否已有脱敏、实体词典、局部重转录工具；
+- 实际输出文件，即使 README 未记录。
 
-将结论写入：
+输出：
 `worklogs/API_NATIVE_REUSE_AUDIT.md`
 
-建议表格：
-
-| Capability | Evidence | Status | Action |
-|---|---|---|---|
-| server access | command/log/path | REUSE_AS_IS | none |
-| Qwen ASR | model/env/output | REUSE_AS_IS | none |
-| diarization | file/script | ADAPT_ONLY | map schema |
-| privacy redaction | none found | MISSING | implement |
-
-Status 只能使用：
+状态：
 `REUSE_AS_IS / ADAPT_ONLY / PARTIAL / MISSING / UNKNOWN`
 
-`UNKNOWN` 不能直接转成 `MISSING`。
+`UNKNOWN` 不能按 `MISSING` 处理。
 
-## 3. 禁止的重复行为
+## 4. 禁止的重复行为
 
-除非 audit 明确证明缺失或失效，不要：
+除非明确失效/缺失，不要：
 
-- 重新搭 SSH、跳板机、VNC 或文件传输；
+- 重新搭服务器连接；
 - 重新下载已有模型；
-- 重建已经正常工作的 Python/CUDA 环境；
-- 重做完整 70 分钟本地 baseline；
-- 重做现有 speaker diarization；
-- 重做已有时间戳/forced alignment；
-- 把已有结果换目录后宣称“新实现”；
-- 因为本包目录结构不同而迁移稳定代码；
-- 删除、覆盖或重命名历史实验结果。
+- 重建正常环境；
+- 重跑已经有 artifact 的整文件 ASR；
+- 重做与隐私任务无关的 benchmark；
+- 重做 speaker diarization；
+- 为符合本仓库结构迁移稳定代码；
+- 覆盖历史输出。
 
-## 4. “适配优先”规则
+## 5. ASR 质量问题必须继承，但只处理与当前任务相关的部分
 
-如果已有模块功能正确但格式不同：
+Codex 必须读取历史 ASR 质量问题，不能假设已有文本准确。
+
+当前 P0：
+
+- 敏感实体误识别/漏识别；
+- 人名、机构、地点、号码的错误；
+- 会影响 Qwen70B 隐私判断的文本错误；
+- 敏感 span 的精确时间戳；
+- 文本 span 到音频的对齐；
+- redaction 对相邻语音的误伤。
+
+当前非优先：
+
+- speaker diarization；
+- speaker role 命名；
+- 与隐私无关的普通错字；
+- 标点和格式。
+
+发现 ASR 问题时先问：
+
+> 这个问题会不会影响敏感信息发现、边界定位或抹除后的正常语音？
+
+会：处理。  
+不会：记录，当前不优先。
+
+## 6. 局部修复优于全量重跑
+
+若敏感 span 附近转录不可靠：
+
+- 截取局部音频；
+- 调高质量设置局部重转录；
+- 复用第二 ASR（若已有）；
+- 进行人工确认。
+
+不要因为几秒问题重跑整小时文件。
+
+## 7. 适配优先
+
+已有能力格式不同：
 
 **只写 adapter。**
 
-例如已有 diarization 输出：
-`speaker,start_ms,end_ms`
+不为了 schema 重跑模型。
 
-而新重建模块需要：
-`speaker,start_s,end_s`
+## 8. 说话人区分暂不作为阻塞条件
 
-正确做法是写转换层；不要重新跑 diarization。
+若 diarization 已存在，可以复用。
 
-## 5. 与历史结果并存
+如果质量一般但不妨碍：
 
-本路线是新实验臂，不覆盖已有本地 ASR 路线。
+`敏感文字 -> 精确音频区间 -> 抹除`
 
-输出应明确分开，例如：
+则不修。
 
-```
-outputs/
-  local_baseline/        # 原有，保持不动
-  api_native/
-    privacy/
-    cloud/tencent/
-    cloud/volcengine/
-    reconstructed/
-```
+只有当说话人问题直接造成敏感信息漏检/边界错误时，才提升优先级。
 
-若已有输出规范，则沿用既有命名，只要能区分实验臂。
+## 9. 真实数据停机条件
 
-## 6. 真实数据的停机条件
+以下任一不满足，可继续 mock/开发，但不能上传真实咨询音频：
 
-以下任一条件不满足时，可以继续开发/mock，但不能上传真实心理咨询音频：
+- Ethics Gate；
+- Privacy Gate；
+- Vendor Gate；
+- Security Gate；
+- 敏感 span 的 transcript/alignment 存在未解决高风险异常。
 
-- Ethics Gate 未确认；
-- Privacy Gate 未人工通过；
-- Vendor Gate 未确认；
-- API 凭证管理不安全；
-- 无法确认是否用于训练/服务优化；
-- 无法确认留存/删除条件。
+## 10. 允许变通
 
-## 7. 允许变通
+允许：
+- 复用已有框架；
+- 复用已有 aligner；
+- 调整 chunk；
+- 替换 provider；
+- 接已有人工审核工具；
+- 扩展已有 manifest；
+- 使用更适合现有服务器环境的局部修复方法。
 
-本包指定的是“功能与 Gate”，不是强制框架。
+偏离参考方案时写明理由和对 Gate 的影响。
 
-允许 Codex：
+## 11. 完成时报告
 
-- 复用现有语言/框架；
-- 复用已有 provider SDK；
-- 换用已有 alignment 工具；
-- 根据服务器实际资源调整 chunk 大小；
-- 若已有云 provider 更合规/更成熟，可把它作为首个实现；
-- 若已有人工标注工具，可接入，而非新造 UI；
-- 若现有 pipeline 已有 manifest/schema，可扩展而非另起一套。
+至少报告：
 
-但任何偏离都要在 run log 中写明：
-“复用了什么、为什么没有照本包重新实现、对 Gate 是否有影响”。
-
-## 8. 完成时应报告
-
-最终给用户/Codex owner 报告：
-
-1. 复用了哪些现有资产；
-2. 新增了哪些最小组件；
-3. 哪些工作明确没有重做；
-4. 真实音频是否曾离开受控环境；
-5. Gate 状态；
-6. 70 分钟 demo 完整处理结果；
-7. 质量对比；
-8. 剩余风险与下一步。
+1. 当前全量 ASR 运行状态；
+2. 已处理 artifact 数量；
+3. 复用了哪些历史资产；
+4. 新增哪些最小组件；
+5. 哪些工作明确没有重做；
+6. 隐私相关 ASR 质量问题；
+7. Qwen70B 敏感信息识别表现；
+8. timestamp/boundary 表现；
+9. privacy leakage 与 collateral loss；
+10. Gate 状态与剩余风险。
